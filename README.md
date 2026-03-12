@@ -1,0 +1,2 @@
+# autoday
+daily update news
