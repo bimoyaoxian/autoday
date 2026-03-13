@@ -4,30 +4,46 @@ import sys
 import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
+import json
 
 # 企业微信机器人Webhook地址
 WEBHOOK_URL = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=550f678c-bff5-4968-8ae3-f184785d0bdd"
 
-def get_wallstreet_news():
-    """获取华尔街见闻财经新闻"""
+def get_news():
+    """获取财经新闻"""
     news_list = []
+    
+    # 方式1：腾讯新闻热点
     try:
-        url = "https://api.jin10.com/get_channel_list_all"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": "https://wallstreetcn.com/",
-            "x-app-id": "bVj1lGRVt5q0K2Ei"
-        }
+        url = "https://r.inews.qq.com/gw/event/hot_ranking"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            if "data" in data and len(data["data"]) > 0:
-                for item in data["data"][:8]:
+            if "idlist" in data and len(data["idlist"]) > 0:
+                items = data["idlist"][0]["itemlist"]
+                for item in items[:8]:
                     title = item.get("title", "").strip()
-                    if title:
+                    if title and len(title) > 5:
                         news_list.append(title)
     except Exception as e:
-        print(f"获取华尔街见闻失败: {e}")
+        print(f"腾讯新闻获取失败: {e}")
+    
+    # 方式2：新浪新闻热点
+    if not news_list:
+        try:
+            url = "https://top.news.sina.com.cn/ws/Rank_apiInner_0_0_1_1_50_0_1_1.html"
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if "data" in data:
+                    for item in data["data"][:8]:
+                        title = item.get("title", "").strip()
+                        if title:
+                            news_list.append(title)
+        except Exception as e:
+            print(f"新浪新闻获取失败: {e}")
     
     return news_list
 
@@ -35,16 +51,16 @@ def get_jobs():
     """获取热门岗位"""
     jobs_list = []
     
-    # 获取热门招聘数据（综合类）
+    # Boss直聘热门岗位
     try:
-        url = "https://www.zhipin.com/web/geek/job-detail?jobCity=100010000&kw=%E7%83%AD%E9%97%A8"
+        url = "https://www.zhipin.com/web/geek/job/list?city=101010100&page=1"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "lxml")
-            items = soup.select(".job-card")[:5]
+            items = soup.select(".job-card")[:10]
             for item in items:
                 title = item.select_one(".job-title")
                 salary = item.select_one(".salary")
@@ -55,21 +71,33 @@ def get_jobs():
                     if job_text and len(job_text) > 2:
                         jobs_list.append(job_text)
     except Exception as e:
-        print(f"获取招聘失败: {e}")
+        print(f"Boss直聘获取失败: {e}")
     
-    # 如果Boss没数据，尝试其他方式
+    # 备用：前程无忧
     if not jobs_list:
-        jobs_list = ["骑手/配送员", "服务员", "快递员", "客服", "销售"]
+        try:
+            url = "https://www.51job.com/"
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "lxml")
+                items = soup.select(".joblist .el")[:10]
+                for item in items:
+                    title = item.select_one("a")
+                    if title:
+                        jobs_list.append(title.get_text(strip=True))
+        except Exception as e:
+            print(f"前程无忧获取失败: {e}")
     
-    return jobs_list
+    return jobs_list[:5]
 
 def send_daily_report():
     """发送每日简报"""
     try:
         date_str = datetime.now().strftime("%Y年%m月%d日")
         
-        # 获取华尔街新闻
-        news = get_wallstreet_news()
+        # 获取新闻
+        news = get_news()
         news_text = ""
         if news:
             for i, n in enumerate(news, 1):
@@ -77,18 +105,18 @@ def send_daily_report():
         else:
             news_text = "暂无新闻数据\n"
         
-        # 获取热门岗位
+        # 获取岗位
         jobs = get_jobs()
         jobs_text = ""
         if jobs:
-            for j in jobs[:5]:
+            for j in jobs:
                 jobs_text += f"• {j}\n"
         else:
             jobs_text = "暂无岗位数据\n"
         
         # 组装消息
         message = f"📅 **{date_str} 每日简报**\n\n"
-        message += f"**【华尔街见闻 - 财经热点】**\n{news_text}\n"
+        message += f"**【今日热点新闻】**\n{news_text}\n"
         message += f"**【热门岗位推荐】**\n{jobs_text}\n"
         message += f"---\n"
         message += f"*每天8点自动推送 · AutoShell*"
@@ -114,7 +142,7 @@ def main():
     print("AutoShell 每日简报")
     print("=" * 50)
     
-    print("\n正在获取财经新闻和热门岗位...")
+    print("\n正在获取新闻和岗位数据...")
     success = send_daily_report()
     
     if success:
