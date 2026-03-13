@@ -1,4 +1,4 @@
-name: 每日早报手动推送
+name: 每日早报手动推送X
 
 on:
   workflow_dispatch:
