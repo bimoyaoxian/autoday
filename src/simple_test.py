@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 
 # 企业微信机器人Webhook地址
-WEBHOOK_KEY = os.environ.get('WEBHOOK_KEY', '248e712ce2c05922aa4083b40f7cabf6aa')
+WEBHOOK_KEY = os.environ.get('WEBHOOK_KEY', '550f678c-bff5-4968-8ae3-f184785d0bdd')
 WEBHOOK_URL = f"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={WEBHOOK_KEY}"
 
 def send_simple_message():
